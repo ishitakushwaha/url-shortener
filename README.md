@@ -184,3 +184,79 @@ Production-safe cleanup strategy
 
 Scalable design choices
 
+## Cron Job
+Schedule clean-up of expired short urls
+
+### Step 1: Install pg_cron
+```
+git clone https://github.com/citusdata/pg_cron.git
+```
+```
+cd pg_cron
+```
+```
+export PATH=/usr/local/bin:$PATH # Adjust path as necessary
+```
+```
+ make && sudo PATH=$PATH make install
+```
+
+Verify files now exist:
+```
+ls $(brew --prefix)/share/postgresql@14/extension | grep cron
+```
+
+You should see:
+
+pg_cron.control
+
+### Step 2: Tell PostgreSQL to load pg_cron
+Open it:
+
+```
+vi /opt/homebrew/var/postgresql@14/postgresql.conf
+```
+Add or modify these lines:
+
+```
+shared_preload_libraries = 'pg_cron'
+
+cron.database_name = 'url_shortener'
+```
+
+### Step 3: Restart PostgreSQL (mandatory)
+```
+brew services restart postgresql14
+```
+### Step 4: Create the extension (now it will work)
+
+Connect to your DB:
+
+```
+psql -d url_shortener
+```
+Run:
+```
+CREATE EXTENSION pg_cron;
+```
+Verify:
+```
+SELECT extname FROM pg_extension WHERE extname = 'pg_cron';
+```
+Expected output:
+
+pg_cron
+
+### Step 5: Schedule cleanup job (final step)
+```
+SELECT cron.schedule(
+    'cleanup_expired_short_urls',
+    '0 0 * * *', -- once a day at 00:00
+    $$DELETE FROM urls_shorturl WHERE expires_at <= NOW();$$
+);
+```
+Verify:
+
+```
+SELECT jobname, schedule FROM cron.job;
+```
